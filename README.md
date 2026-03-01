@@ -1,6 +1,6 @@
 # ARES — Adaptive Retrieval Engine for Semantic Systems
 
-> A self-aware vector retrieval quality layer built on top of Endee, a high-performance local vector database.
+> A self-aware vector retrieval quality layer built on top of [Endee](https://github.com/EndeeLabs/endee), a high-performance local vector database.
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
 ![Vector DB](https://img.shields.io/badge/VectorDB-Endee-orange)
@@ -13,14 +13,13 @@
 
 Static vector retrieval is **blind by default**.
 
-When you run similarity search with a fixed `k=5`, you always get 5 results — even if none are relevant.  
-There is **no signal** telling you whether retrieval actually succeeded.
+When you run similarity search with a fixed `k=5`, you always get 5 results — even if none are relevant. There is **no signal** telling you whether retrieval actually succeeded.
 
 This leads to:
 
-- ❌ Irrelevant context in RAG pipelines  
-- ❌ Poor recommendations  
-- ❌ No observability into retrieval quality  
+- ❌ Irrelevant context in RAG pipelines
+- ❌ Poor recommendations
+- ❌ No observability into retrieval quality
 
 ---
 
@@ -28,96 +27,96 @@ This leads to:
 
 ARES adds an **adaptive quality layer** on top of Endee that makes retrieval:
 
-- 📊 **Confidence-aware** (mean, std, top-1 gap → score ∈ [0,1])  
-- 🔁 **Adaptive-k** (widens search when confidence is low)  
-- 🧠 **Query-expanding** (rephrases weak queries automatically)  
-- 🏷️ **Metadata-filtered** (topic, year, source)  
-- 📈 **Observable** via a live diagnostics dashboard  
-
-Result → **self-aware retrieval** that is more accurate than static search.
+- 📊 **Confidence-aware** — mean, std, top-1 gap → score ∈ [0,1]
+- 🔁 **Adaptive-k** — widens search when confidence is low
+- 🧠 **Query-expanding** — rephrases weak queries automatically
+- 🏷️ **Metadata-filtered** — filter by topic, year, source
+- 📈 **Observable** — live diagnostics dashboard
 
 ---
 
-# 🏗️ System Architecture
+## 🏗️ System Architecture
+```
 User Query
-│
-▼
+     │
+     ▼
 Embedder (all-MiniLM-L6-v2 → 384d vector)
-│
-▼
-Endee Vector DB (top-k + similarity)
-│
-▼
+     │
+     ▼
+Endee Vector DB (top-k + similarity scores)
+     │
+     ▼
 Confidence Model
-    • mean similarity
-    • std deviation
-    • top-1 vs rest gap
-    │
-    ├─ confidence ≥ 0.7 → return as-is
-    ├─ 0.4–0.7 → double k
-    └─ < 0.4 → max k + query expansion
-                        │
-                        ▼
-                Metadata Filter
-                        │
-                        ▼
-            Final Results + Diagnostics
+  • mean similarity
+  • std deviation
+  • top-1 vs rest gap
+     │
+     ├─ confidence ≥ 0.7  →  return as-is
+     ├─ 0.4 – 0.7         →  double k
+     └─ < 0.4             →  max k + query expansion
+     │
+     ▼
+Metadata Filter
+     │
+     ▼
+Final Results + Diagnostics
+```
 
 ---
+
 
 ## 📐 Confidence Modeling
 
-| Metric           | Formula                         | Purpose                     |
-|------------------|---------------------------------|-----------------------------|
-| Mean similarity  | `mean(scores)`                  | Overall relevance signal    |
-| Std. deviation   | `std(scores)`                   | Uncertainty / spread        |
-| Top-1 gap        | `scores[0] - mean(scores[1:])`  | Strength of best match      |
-| Confidence       | `0.5 * top1 + 0.5 * gap`        | Final decision score        |
+| Metric | Formula | Purpose |
+|---|---|---|
+| Mean similarity | `mean(scores)` | Overall relevance signal |
+| Std. deviation | `std(scores)` | Uncertainty / spread |
+| Top-1 gap | `scores[0] - mean(scores[1:])` | Strength of best match |
+| Confidence | `0.5 * top1 + 0.5 * gap` | Final decision score |
 
 ---
 
 ## 🔍 Adaptive Behaviour
 
-| Confidence Range | Action                          |
-|------------------|---------------------------------|
-| `>= 0.7`         | Keep base `k`                   |
-| `0.4 - 0.7`      | Double `k`                      |
-| `< 0.4`          | Max `k` + query expansion       |
+| Confidence Range | Action |
+|---|---|
+| `>= 0.7` | Keep base `k` |
+| `0.4 – 0.7` | Double `k` |
+| `< 0.4` | Max `k` + query expansion |
 
 ---
 
-# 🔁 Query Expansion
+## 🔁 Query Expansion
 
-Triggered when confidence `< 0.3`.
+Triggered when confidence `< 0.3`. ARES tries:
 
-ARES tries:
+- `"{query} detailed explanation"`
+- `"{query} overview and summary"`
+- `"what is {query}"`
+- `"{query} key concepts"`
 
-- `"{query} detailed explanation"`  
-- `"{query} overview and summary"`  
-- `"what is {query}"`  
-- `"{query} key concepts"`  
-
-The expansion with **highest confidence** is selected.
+The expansion with the **highest confidence** is selected.
 
 ---
 
-# 🗄️ How Endee Is Used
+## 🗄️ How Endee Is Used
 
-⭐ Forked from: https://github.com/EndeeLabs/endee
+⭐ Starred and forked from: [EndeeLabs/endee](https://github.com/EndeeLabs/endee)  
+My fork: [Sowmya721/endee](https://github.com/Sowmya721/endee)
 
 | Operation | Usage |
 |---|---|
-`index/create` | Create `ares_index` (dim=384, cosine) |
-`index.upsert` | Store vectors + `meta` + `filter` |
-`index.query` | Retrieve top-k candidates |
-`index/list` | Startup index check |
+| `index/create` | Create `ares_index` (dim=384, cosine) |
+| `index.upsert` | Store vectors + `meta` + `filter` |
+| `index.query` | Retrieve top-k candidates |
+| `index/list` | Startup index check |
 
 ### Stored Document Format
 
 ```json
 {
   "id": "doc_001",
-  "vector": [0.032, -0.018, ...],
+  "vector": [0.032, -0.018, "..."],
   "meta": {
     "topic": "finance",
     "year": 2024,
@@ -128,17 +127,26 @@ The expansion with **highest confidence** is selected.
     "year": 2024
   }
 }
+```
 
 ---
-📊 Benchmarks
-Mode	        Avg Confidence	    Avg Latency	        Behavior
-Static k=5	        0.52	            ~38 ms	        Fixed retrieval
-ARES Adaptive	    0.58	            ~59 ms	        Self-adjusting + expansion
 
-Key insight: High-confidence queries skip expansion → no wasted compute.
+## 📊 Benchmarks
+
+Tested across 5 diverse queries.
+
+|       Mode     | Avg Confidence | Avg Latency |            Behavior                |
+|----------------|----------------|-------------|------------------------------------|
+| Static k=5     |      0.52      |     ~38 ms  | Fixed retrieval, no quality signal |
+| ARES Adaptive  |      0.58      |     ~59 ms  | Self-adjusting k + query expansion |
+
+**Key insight:** High-confidence queries skip expansion entirely — no wasted compute. Example: "container orchestration kubernetes" scored 0.72 confidence and kept k=5 unchanged.
 
 ---
-📂 Project Structure
+
+## 📂 Project Structure
+
+```
 ARES/
 ├── docker-compose.yml
 ├── .env
@@ -156,14 +164,20 @@ ARES/
 │   └── benchmark.py
 └── tests/
     └── test_retriever.py
-
+```
 
 ---
-⚙️ Setup
-1️⃣ Clone repo
+
+## ⚙️ Setup & Execution
+
+### 1. Clone the repository
+```bash
 git clone https://github.com/Sowmya721/ARES.git
 cd ARES
-2️⃣ Virtual environment
+```
+
+### 2. Create and activate virtual environment
+```bash
 python -m venv venv
 
 # Windows
@@ -171,74 +185,80 @@ venv\Scripts\activate
 
 # Mac/Linux
 source venv/bin/activate
-3️⃣ Install dependencies
+```
+
+### 3. Install dependencies
+```bash
 pip install -r requirements.txt
-🐳 Start Endee
+```
+
+### 4. Start Endee
+
+Make sure Docker Desktop is open, then:
+```bash
 docker compose up -d
+```
 
-Verify:
-
+Verify Endee is running:
+```bash
 python -c "import requests; print(requests.get('http://127.0.0.1:8080/api/v1/index/list').text)"
+```
 
-Expected:
+Expected: `{"indexes":[...]}`
 
-{"indexes":[...]}
-📥 Ingest Documents
+### 5. Ingest documents
+```bash
 python -m ares.ingest
+```
 
 Expected output:
-
+```
 Creating index 'ares_index' (dim=384)...
-Index status: created
+  → {'status': 'created'}
 Embedding documents...
 Upserting 12 documents into Endee...
-→ {'status': 'ok'}
+  → {'status': 'ok'}
 ✅ Ingestion complete.
-📊 Dashboard
+```
+
+### 6. Launch the dashboard
+```bash
 streamlit run dashboard/app.py
+```
 
-Open → http://localhost:8501
+Open `http://localhost:8501` in your browser.
 
-Features:
-
-Confidence score
-
-Similarity histogram
-
-Retrieval trace
-
-Metadata filtering
-
-
----
-🧪 Benchmark
+### 7. Run benchmark
+```bash
 python scripts/benchmark.py
+```
 
-Compares static vs adaptive retrieval.
-
-✅ Tests
+### 8. Run tests
+```bash
 python -m pytest tests/
+```
 
-All tests should pass.
+---
+
+## 🧰 Tech Stack
+
+| Component | Technology |
+|---|---|
+| Vector Database | [Endee](https://github.com/EndeeLabs/endee) |
+| Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
+| Dashboard | Streamlit |
+| Confidence Math | NumPy |
+| HTTP Client | requests |
+| Testing | pytest |
 
 ---
 
-🧰 Tech Stack
-Component	    Technology
-Vector DB	    Endee
-Embeddings	    sentence-transformers
-Dashboard	    Streamlit
-Math	        NumPy
-HTTP Client	    requests
-Testing	        pytest
+## 📜 License
 
----
-📜 License
 MIT
 
 ---
-🌟 Key Takeaway
-ARES turns vector search from a black box into a measurable, adaptive system.
 
-It doesn’t just retrieve results —
-it knows whether retrieval worked.
+## 🌟 Key Takeaway
+
+ARES turns vector search from a black box into a measurable, adaptive system. It doesn't just retrieve results — it knows whether retrieval worked.
